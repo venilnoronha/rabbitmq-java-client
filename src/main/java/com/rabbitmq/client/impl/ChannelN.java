@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.rabbitmq.client.ConfirmCallback;
 import com.rabbitmq.client.*;
@@ -91,6 +92,9 @@ public class ChannelN extends AMQChannel implements com.rabbitmq.client.Channel 
     private volatile boolean onlyAcksReceived = true;
 
     protected final MetricsCollector metricsCollector;
+
+    /** Whether there was an attempt to close the channel. */
+    private volatile AtomicBoolean closeAttempted = new AtomicBoolean(false);
 
     /**
      * Construct a new channel on the given connection with the given
@@ -580,6 +584,10 @@ public class ChannelN extends AMQChannel implements com.rabbitmq.client.Channel 
                       Throwable cause,
                       boolean abort)
         throws IOException, TimeoutException {
+        if (!closeAttempted.compareAndSet(false, true)) {
+            return;
+        }
+
         // First, notify all our dependents that we are shutting down.
         // This clears isOpen(), so no further work from the
         // application side will be accepted, and any inbound commands
